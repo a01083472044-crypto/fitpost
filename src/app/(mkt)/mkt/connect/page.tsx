@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getMktAccounts, saveMktAccount, removeMktAccount, type MktAccount } from "../../../lib/mkt";
 
-export default function ConnectPage() {
+function ConnectContent() {
   const params   = useSearchParams();
   const [accounts, setAccounts] = useState<MktAccount[]>([]);
   const [toast, setToast]       = useState<{ ok: boolean; msg: string } | null>(null);
@@ -12,7 +12,6 @@ export default function ConnectPage() {
   useEffect(() => {
     setAccounts(getMktAccounts());
 
-    // OAuth 콜백 결과 처리
     if (params.get("success") === "1") {
       const account: MktAccount = {
         id:              `ig_${params.get("igId")}`,
@@ -59,7 +58,6 @@ export default function ConnectPage() {
         </div>
       )}
 
-      {/* 연결된 계정 목록 */}
       {accounts.length > 0 && (
         <div className="mb-8 bg-white rounded-xl border border-gray-200">
           <div className="p-5 border-b border-gray-100 font-semibold text-gray-800 text-sm">
@@ -89,7 +87,6 @@ export default function ConnectPage() {
         </div>
       )}
 
-      {/* Instagram 연결 카드 */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center text-white text-xl">
@@ -125,7 +122,6 @@ export default function ConnectPage() {
         </a>
       </div>
 
-      {/* 네이버 블로그 안내 */}
       <div className="mt-4 bg-white rounded-xl border border-dashed border-gray-300 p-6 opacity-60">
         <div className="flex items-center gap-4 mb-3">
           <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center text-white text-xl">
@@ -141,5 +137,13 @@ export default function ConnectPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function ConnectPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-gray-400">로딩 중...</div>}>
+      <ConnectContent />
+    </Suspense>
   );
 }
