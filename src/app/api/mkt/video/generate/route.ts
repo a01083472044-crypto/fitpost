@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as crypto from "crypto";
 
 type GenerateBody = {
   service: "kling" | "runway" | "luma";
@@ -6,20 +7,30 @@ type GenerateBody = {
   duration: number;
 };
 
+function makeKlingJWT(): string {
+  const accessKey = process.env.KLING_ACCESS_KEY;
+  const secretKey = process.env.KLING_SECRET_KEY;
+  if (!accessKey || !secretKey) throw new Error("KLING_ACCESS_KEY / KLING_SECRET_KEY 환경변수가 설정되지 않았습니다");
+
+  const header  = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const now     = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({ iss: accessKey, exp: now + 1800, nbf: now - 5 })).toString("base64url");
+  const sig     = crypto.createHmac("sha256", secretKey).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${sig}`;
+}
+
 // ── Kling AI ────────────────────────────────────────────────────────────────
 async function generateKling(prompt: string, duration: number) {
-  const apiKey = process.env.KLING_API_KEY;
-  if (!apiKey) throw new Error("KLING_API_KEY 환경변수가 설정되지 않았습니다");
+  const token = makeKlingJWT();
 
-  // 작업 생성
   const createRes = await fetch("https://api.klingai.com/v1/videos/text2video", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${token}`,
     },
     body: JSON.stringify({
-      model_name: "kling-v2",
+      model_name: "kling-v1-6",
       prompt,
       duration,
       aspect_ratio: "9:16",
@@ -31,11 +42,11 @@ async function generateKling(prompt: string, duration: number) {
 
   const taskId: string = createData.data.task_id;
 
-  // 완료 대기 (최대 3분)
   for (let i = 0; i < 36; i++) {
     await new Promise((r) => setTimeout(r, 5000));
+    const jwt = makeKlingJWT(); // JWT는 짧게 만료되므로 매번 재생성
     const statusRes  = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
+      headers: { "Authorization": `Bearer ${jwt}` },
     });
     const statusData = await statusRes.json();
     const status     = statusData.data?.task_status;
@@ -45,7 +56,7 @@ async function generateKling(prompt: string, duration: number) {
       if (!videoUrl) throw new Error("영상 URL을 가져올 수 없습니다");
       return { videoUrl, taskId };
     }
-    if (status === "failed") throw new Error("Kling 영상 생성 실패");
+    if (status === "failed") throw new Error("Kling 영상 생성 실패: " + statusData.data?.task_status_msg);
   }
   throw new Error("영상 생성 시간 초과 (3분)");
 }
@@ -134,7 +145,7 @@ async function generateLuma(prompt: string, duration: number) {
 }
 
 // ── 라우트 핸들러 ─────────────────────────────────────────────────────────────
-export const maxDuration = 300; // Vercel Pro: 5분 타임아웃
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const body: GenerateBody = await req.json();
@@ -146,7 +157,7 @@ export async function POST(req: NextRequest) {
 
   try {
     let result;
-    if (service === "kling")  result = await generateKling(prompt, duration);
+    if (service === "kling")       result = await generateKling(prompt, duration);
     else if (service === "runway") result = await generateRunway(prompt, duration);
     else if (service === "luma")   result = await generateLuma(prompt, duration);
     else return NextResponse.json({ error: "지원하지 않는 서비스입니다" }, { status: 400 });

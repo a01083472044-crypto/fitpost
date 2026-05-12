@@ -161,7 +161,7 @@ export default function VideoPage() {
                 }`}
               >
                 <div className="font-semibold">{d}초</div>
-                <div className="text-xs mt-0.5 opacity-70">약 ₩{cost.toLocaleString()}</div>
+                <div className="text-xs mt-0.5 opacity-70">약 {cost.toLocaleString()}원</div>
               </button>
             );
           })}
@@ -175,7 +175,7 @@ export default function VideoPage() {
           <p className="text-xs text-gray-400 mt-0.5">{service.name} · {duration}초</p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-gray-900">₩{krwCost.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-gray-900">{krwCost.toLocaleString()}원</p>
           <p className="text-xs text-gray-400">${usdCost.toFixed(2)} USD</p>
         </div>
       </div>
@@ -223,7 +223,7 @@ export default function VideoPage() {
             <span className="animate-spin">⏳</span> AI 영상 생성 중... (30초~2분 소요)
           </span>
         ) : (
-          `🎬 영상 생성하기 · ₩${krwCost.toLocaleString()}`
+          `🎬 영상 생성하기 · ${krwCost.toLocaleString()}원`
         )}
       </button>
 
@@ -263,7 +263,7 @@ export default function VideoPage() {
         <p className="text-xs leading-relaxed">
           실제 영상 생성을 위해 선택한 서비스의 API 키를 Vercel 환경변수에 추가해야 합니다.
           <br />
-          <span className="font-mono">KLING_API_KEY</span> · <span className="font-mono">RUNWAY_API_KEY</span> · <span className="font-mono">LUMA_API_KEY</span>
+          <span className="font-mono">KLING_ACCESS_KEY</span> · <span className="font-mono">KLING_SECRET_KEY</span> · <span className="font-mono">RUNWAY_API_KEY</span> · <span className="font-mono">LUMA_API_KEY</span>
         </p>
       </div>
     </div>
