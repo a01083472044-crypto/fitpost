@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 type GenerateBody = {
-  topic: string;        // 오늘 콘텐츠 주제 (예: "등 운동 3종 세트")
-  tone: string;         // 분위기 (예: "친근하고 동기부여", "전문적")
-  gymName?: string;     // 헬스장 이름
-  specialOffer?: string; // 특별 이벤트/할인 정보
+  topic: string;
+  tone: string;
+  gymName?: string;
+  specialOffer?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -16,6 +13,11 @@ export async function POST(req: NextRequest) {
 
   if (!topic) {
     return NextResponse.json({ error: "topic이 필요합니다" }, { status: 400 });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "GEMINI_API_KEY 환경변수가 설정되지 않았습니다" }, { status: 500 });
   }
 
   const prompt = `당신은 한국 헬스장/PT샵 전문 SNS 마케터입니다.
@@ -37,22 +39,31 @@ ${specialOffer ? `특별 이벤트: ${specialOffer}` : ""}
 ===BLOG===
 네이버 블로그 초안 (제목 포함, 500-800자, 마크다운 형식, SEO 친화적)`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }],
-  });
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 1500, temperature: 0.7 },
+      }),
+    }
+  );
 
-  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  const data = await res.json();
+  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-  const captionMatch = text.match(/===CAPTION===\n([\s\S]*?)(?===HASHTAGS===)/);
+  if (!text) {
+    return NextResponse.json({ error: "AI 응답 실패", detail: data }, { status: 500 });
+  }
+
+  const captionMatch  = text.match(/===CAPTION===\n([\s\S]*?)(?===HASHTAGS===)/);
   const hashtagsMatch = text.match(/===HASHTAGS===\n([\s\S]*?)(?===BLOG===)/);
-  const blogMatch = text.match(/===BLOG===\n([\s\S]*?)$/);
+  const blogMatch     = text.match(/===BLOG===\n([\s\S]*?)$/);
 
-  const caption   = captionMatch?.[1]?.trim() ?? "";
-  const hashtags  = (hashtagsMatch?.[1]?.trim() ?? "")
-    .split(/\s+/)
-    .filter((h) => h.startsWith("#"));
+  const caption     = captionMatch?.[1]?.trim() ?? "";
+  const hashtags    = (hashtagsMatch?.[1]?.trim() ?? "").split(/\s+/).filter((h) => h.startsWith("#"));
   const blogContent = blogMatch?.[1]?.trim() ?? "";
 
   return NextResponse.json({ caption, hashtags, blogContent });
