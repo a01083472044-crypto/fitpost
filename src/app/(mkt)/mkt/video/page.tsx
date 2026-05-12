@@ -2,17 +2,30 @@
 
 import { useState } from "react";
 
+type ServiceId = "kling" | "runway" | "luma" | "hf";
+
 type Service = {
-  id: "kling" | "runway" | "luma";
+  id: ServiceId;
   name: string;
   desc: string;
   quality: number;
-  pricePerSec: number; // USD
+  pricePerSec: number; // 0 = free
   badge?: string;
   color: string;
+  fixedDuration?: number; // HF는 고정 길이
 };
 
 const SERVICES: Service[] = [
+  {
+    id: "hf",
+    name: "HuggingFace (무료)",
+    desc: "완전 무료. 약 2초 짧은 클립 생성. 테스트 및 아이디어 확인용",
+    quality: 2,
+    pricePerSec: 0,
+    badge: "무료",
+    color: "green",
+    fixedDuration: 2,
+  },
   {
     id: "kling",
     name: "Kling 2.0",
@@ -55,16 +68,18 @@ const FITNESS_PROMPTS = [
 ];
 
 export default function VideoPage() {
-  const [selected, setSelected]   = useState<Service["id"]>("kling");
-  const [duration, setDuration]   = useState(10);
-  const [prompt, setPrompt]       = useState("");
+  const [selected, setSelected]     = useState<ServiceId>("hf");
+  const [duration, setDuration]     = useState(10);
+  const [prompt, setPrompt]         = useState("");
   const [generating, setGenerating] = useState(false);
-  const [result, setResult]       = useState<{ videoUrl: string; taskId: string } | null>(null);
-  const [error, setError]         = useState("");
+  const [result, setResult]         = useState<{ videoUrl: string; taskId: string } | null>(null);
+  const [error, setError]           = useState("");
 
-  const service  = SERVICES.find((s) => s.id === selected)!;
-  const usdCost  = service.pricePerSec * duration;
-  const krwCost  = Math.round(usdCost * KRW_RATE);
+  const service     = SERVICES.find((s) => s.id === selected)!;
+  const isFree      = service.pricePerSec === 0;
+  const effectiveDur = service.fixedDuration ?? duration;
+  const usdCost     = service.pricePerSec * effectiveDur;
+  const krwCost     = Math.round(usdCost * KRW_RATE);
 
   async function generate() {
     if (!prompt.trim()) { setError("영상 설명을 입력해주세요"); return; }
@@ -76,7 +91,7 @@ export default function VideoPage() {
       const res  = await fetch("/api/mkt/video/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service: selected, prompt, duration }),
+        body: JSON.stringify({ service: selected, prompt, duration: effectiveDur }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -89,11 +104,13 @@ export default function VideoPage() {
   }
 
   const colorMap: Record<string, string> = {
+    green:  "border-green-500 bg-green-50",
     indigo: "border-indigo-500 bg-indigo-50",
     purple: "border-purple-500 bg-purple-50",
     pink:   "border-pink-500 bg-pink-50",
   };
   const badgeMap: Record<string, string> = {
+    green:  "bg-green-100 text-green-700",
     indigo: "bg-indigo-100 text-indigo-700",
     purple: "bg-purple-100 text-purple-700",
     pink:   "bg-pink-100 text-pink-700",
@@ -111,7 +128,7 @@ export default function VideoPage() {
       {/* 서비스 선택 */}
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">AI 서비스 선택</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {SERVICES.map((svc) => (
             <button
               key={svc.id}
@@ -137,48 +154,62 @@ export default function VideoPage() {
                 ))}
               </div>
               <div className="text-sm font-semibold text-gray-900">
-                ${svc.pricePerSec.toFixed(2)}<span className="text-xs font-normal text-gray-500">/초</span>
+                {svc.pricePerSec === 0
+                  ? <span className="text-green-600">무료</span>
+                  : <>${svc.pricePerSec.toFixed(2)}<span className="text-xs font-normal text-gray-500">/초</span></>
+                }
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 영상 길이 */}
-      <div className="mb-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">영상 길이</h3>
-        <div className="flex gap-3">
-          {DURATIONS.map((d) => {
-            const cost = Math.round(service.pricePerSec * d * KRW_RATE);
-            return (
-              <button
-                key={d}
-                onClick={() => setDuration(d)}
-                className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm transition-all ${
-                  duration === d
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300"
-                }`}
-              >
-                <div className="font-semibold">{d}초</div>
-                <div className="text-xs mt-0.5 opacity-70">약 {cost.toLocaleString()}원</div>
-              </button>
-            );
-          })}
+      {/* 영상 길이 (무료 서비스는 고정) */}
+      {!isFree && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">영상 길이</h3>
+          <div className="flex gap-3">
+            {DURATIONS.map((d) => {
+              const cost = Math.round(service.pricePerSec * d * KRW_RATE);
+              return (
+                <button
+                  key={d}
+                  onClick={() => setDuration(d)}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm transition-all ${
+                    duration === d
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="font-semibold">{d}초</div>
+                  <div className="text-xs mt-0.5 opacity-70">약 {cost.toLocaleString()}원</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 예상 금액 */}
-      <div className="mb-6 bg-gray-50 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">예상 생성 비용</p>
-          <p className="text-xs text-gray-400 mt-0.5">{service.name} · {duration}초</p>
+      {isFree && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+          <p className="font-medium">✅ 무료 생성 — 약 2초 클립</p>
+          <p className="text-xs mt-0.5 text-green-600">HuggingFace 무료 API 사용. API 키 없이 HF 계정만 있으면 됩니다.</p>
         </div>
-        <div className="text-right">
-          <p className="text-2xl font-bold text-gray-900">{krwCost.toLocaleString()}원</p>
-          <p className="text-xs text-gray-400">${usdCost.toFixed(2)} USD</p>
+      )}
+
+      {/* 예상 금액 (유료만) */}
+      {!isFree && (
+        <div className="mb-6 bg-gray-50 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">예상 생성 비용</p>
+            <p className="text-xs text-gray-400 mt-0.5">{service.name} · {duration}초</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-gray-900">{krwCost.toLocaleString()}원</p>
+            <p className="text-xs text-gray-400">${usdCost.toFixed(2)} USD</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 프롬프트 입력 */}
       <div className="mb-4">
@@ -216,12 +247,18 @@ export default function VideoPage() {
       <button
         onClick={generate}
         disabled={generating}
-        className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-base hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className={`w-full py-4 text-white rounded-xl font-semibold text-base hover:opacity-90 disabled:opacity-50 transition-opacity ${
+          isFree
+            ? "bg-gradient-to-r from-green-500 to-teal-500"
+            : "bg-gradient-to-r from-indigo-600 to-purple-600"
+        }`}
       >
         {generating ? (
           <span className="flex items-center justify-center gap-2">
             <span className="animate-spin">⏳</span> AI 영상 생성 중... (30초~2분 소요)
           </span>
+        ) : isFree ? (
+          "🎬 무료로 영상 생성하기"
         ) : (
           `🎬 영상 생성하기 · ${krwCost.toLocaleString()}원`
         )}
@@ -234,12 +271,14 @@ export default function VideoPage() {
           <video
             src={result.videoUrl}
             controls
+            autoPlay
+            loop
             className="w-full rounded-lg mb-4 max-h-96 object-contain bg-black"
           />
           <div className="flex gap-3">
             <a
               href={result.videoUrl}
-              download
+              download="fitpost-video.mp4"
               className="flex-1 text-center py-3 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               📥 다운로드
@@ -259,11 +298,10 @@ export default function VideoPage() {
 
       {/* API 키 안내 */}
       <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p className="font-medium mb-1">⚠️ API 키 필요</p>
+        <p className="font-medium mb-1">⚠️ API 키 안내</p>
         <p className="text-xs leading-relaxed">
-          실제 영상 생성을 위해 선택한 서비스의 API 키를 Vercel 환경변수에 추가해야 합니다.
-          <br />
-          <span className="font-mono">KLING_ACCESS_KEY</span> · <span className="font-mono">KLING_SECRET_KEY</span> · <span className="font-mono">RUNWAY_API_KEY</span> · <span className="font-mono">LUMA_API_KEY</span>
+          무료: <span className="font-mono">HF_TOKEN</span> (HuggingFace 계정 무료 발급)<br />
+          유료: <span className="font-mono">KLING_ACCESS_KEY</span> · <span className="font-mono">KLING_SECRET_KEY</span> · <span className="font-mono">RUNWAY_API_KEY</span> · <span className="font-mono">LUMA_API_KEY</span>
         </p>
       </div>
     </div>

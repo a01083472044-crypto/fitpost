@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as crypto from "crypto";
 
 type GenerateBody = {
-  service: "kling" | "runway" | "luma";
+  service: "kling" | "runway" | "luma" | "hf";
   prompt: string;
   duration: number;
 };
@@ -144,6 +144,34 @@ async function generateLuma(prompt: string, duration: number) {
   throw new Error("영상 생성 시간 초과 (3분)");
 }
 
+// ── HuggingFace (무료) ────────────────────────────────────────────────────────
+async function generateHuggingFace(prompt: string) {
+  const apiKey = process.env.HF_TOKEN;
+  if (!apiKey) throw new Error("HF_TOKEN 환경변수가 설정되지 않았습니다");
+
+  const res = await fetch(
+    "https://api-inference.huggingface.co/models/damo-vilab/text-to-video-ms-1.7b",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputs: prompt }),
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error("HuggingFace 오류: " + text.slice(0, 200));
+  }
+
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+  const videoUrl = `data:video/mp4;base64,${base64}`;
+  return { videoUrl, taskId: "hf_" + Date.now() };
+}
+
 // ── 라우트 핸들러 ─────────────────────────────────────────────────────────────
 export const maxDuration = 300;
 
@@ -157,7 +185,8 @@ export async function POST(req: NextRequest) {
 
   try {
     let result;
-    if (service === "kling")       result = await generateKling(prompt, duration);
+    if (service === "hf")          result = await generateHuggingFace(prompt);
+    else if (service === "kling")  result = await generateKling(prompt, duration);
     else if (service === "runway") result = await generateRunway(prompt, duration);
     else if (service === "luma")   result = await generateLuma(prompt, duration);
     else return NextResponse.json({ error: "지원하지 않는 서비스입니다" }, { status: 400 });
