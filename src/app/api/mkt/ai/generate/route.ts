@@ -40,7 +40,7 @@ ${specialOffer ? `특별 이벤트: ${specialOffer}` : ""}
 네이버 블로그 초안 (제목 포함, 500-800자, 마크다운 형식, SEO 친화적)`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
