@@ -7,6 +7,7 @@ const nav = [
   { href: "/mkt", label: "대시보드", icon: "📊" },
   { href: "/mkt/connect", label: "계정 연동", icon: "🔗" },
   { href: "/mkt/create", label: "콘텐츠 생성", icon: "✏️" },
+  { href: "/mkt/blog", label: "블로그 SEO", icon: "📝" },
   { href: "/mkt/video", label: "AI 영상 제작", icon: "🎬" },
   { href: "/mkt/schedule", label: "예약 관리", icon: "📅" },
 ];
