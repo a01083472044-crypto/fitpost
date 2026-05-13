@@ -56,12 +56,23 @@ export async function POST(req: NextRequest) {
     );
 
     const data = await res.json();
-    const raw  = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    // Gemini API 레벨 에러 체크
+    if (data.error) throw new Error("Gemini API 오류: " + data.error.message);
+
+    const candidate = data.candidates?.[0];
+    if (!candidate) throw new Error("Gemini 응답 없음 (candidates 없음). status: " + JSON.stringify(data.promptFeedback ?? {}));
+
+    // 안전 필터로 차단된 경우
+    if (candidate.finishReason === "SAFETY") throw new Error("Gemini 안전 필터에 의해 차단됨. 키워드를 다르게 입력해보세요.");
+
+    const raw = candidate.content?.parts?.[0]?.text ?? "";
+    if (!raw) throw new Error("Gemini 빈 응답. finishReason: " + candidate.finishReason);
 
     // 마크다운 코드블록 또는 순수 JSON 모두 처리
     const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     const jsonStr   = codeBlock ? codeBlock[1] : (raw.match(/\{[\s\S]*\}/) ?? [""])[0];
-    if (!jsonStr) throw new Error("AI 응답 파싱 실패: " + raw.slice(0, 200));
+    if (!jsonStr) throw new Error("JSON 파싱 실패. 원문: " + raw.slice(0, 300));
 
     const parsed = JSON.parse(jsonStr);
     return NextResponse.json(parsed);
