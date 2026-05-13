@@ -58,10 +58,12 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     const raw  = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI 응답 파싱 실패");
+    // 마크다운 코드블록 또는 순수 JSON 모두 처리
+    const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    const jsonStr   = codeBlock ? codeBlock[1] : (raw.match(/\{[\s\S]*\}/) ?? [""])[0];
+    if (!jsonStr) throw new Error("AI 응답 파싱 실패: " + raw.slice(0, 200));
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonStr);
     return NextResponse.json(parsed);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
